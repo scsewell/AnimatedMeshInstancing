@@ -146,15 +146,7 @@ namespace Framework.Rendering.InstancedAnimation
                     if (!bones.Contains(bone))
                     {
                         bones.Add(bone);
-
-                        // The bind pose is given in the space of the renderer, but 
-                        // we should convert it into the space of the animator so it is
-                        // not specific to this renderer.
-                        var animator = m_config.animator.transform;
-                        //var bindPose = rendererBindPoses[i] * renderer.worldToLocalMatrix * animator.localToWorldMatrix;
-                        var bindPose = rendererBindPoses[i].inverse;
-
-                        bindPoses.Add(bindPose);
+                        bindPoses.Add(rendererBindPoses[i]);
                     }
 
                     boneIndexToCombinedIndex.Add(i, bones.IndexOf(bone));
@@ -182,7 +174,7 @@ namespace Framework.Rendering.InstancedAnimation
             for (var i = 0; i < mesh.vertexCount; i++)
             {
                 var index = indexMap[weights[i].boneIndex0];
-                var position = (Vector3)m_bindPoses[index].GetColumn(3);
+                var position = (Vector3)m_bindPoses[index].inverse.GetColumn(3);
 
                 // This coordinate gives the row in the animation texture this vertex should read from.
                 // We offset the coordinate to be in the center of the pixel.
@@ -266,15 +258,8 @@ namespace Framework.Rendering.InstancedAnimation
                     var root = m_config.animator.transform;
                     var t = m_bones[bone];
 
-                    //var offset = m_bindPoses[bone] * t.localToWorldMatrix;
-
                     var pos = root.InverseTransformPoint(t.position);
-                    //var rot =  Quaternion.Inverse(root.rotation) * t.rotation;
-                    //var rot = Quaternion.Inverse(root.rotation) * Quaternion.Inverse(m_bindPoses[bone].rotation);
-                    //var rot = Quaternion.Inverse(root.rotation) * Quaternion.Inverse(m_bindPoses[bone].rotation) * t.rotation;
-
-                    //var rot = t.rotation * Quaternion.Inverse(m_bindPoses[bone].rotation) * Quaternion.Euler(90, 0, 0);
-                    var rot = t.rotation * Quaternion.Inverse(m_bindPoses[bone].rotation);
+                    var rot = t.rotation * m_bindPoses[bone].rotation;
 
                     var y = bone * rowLength;
 
