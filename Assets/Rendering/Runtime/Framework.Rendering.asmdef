@@ -1,0 +1,22 @@
+{
+    "name": "Framework.Rendering",
+    "rootNamespace": "Framework.Rendering",
+    "references": [
+        "Unity.RenderPipelines.Core.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.core",
+            "expression": "11.0.0",
+            "define": "UNITY_SRP_11_0_0_OR_NEWER"
+        }
+    ],
+    "noEngineReferences": false
+}

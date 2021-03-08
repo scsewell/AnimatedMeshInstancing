@@ -1,0 +1,16 @@
+{
+    "name": "Framework.Rendering.Editor",
+    "rootNamespace": "Framework.Rendering",
+    "references": [
+        "Framework.Rendering"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
