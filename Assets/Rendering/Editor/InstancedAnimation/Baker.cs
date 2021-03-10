@@ -10,8 +10,9 @@ namespace Framework.Rendering.InstancedAnimation
     public struct BakeConfig
     {
         public Animator animator;
-        public SkinnedMeshRenderer[] renderers;
         public AnimationClip[] animations;
+        public SkinnedMeshRenderer[] renderers;
+        public Dictionary<Material, Material> materialRemap;
     }
 
     public class Baker
@@ -218,7 +219,15 @@ namespace Framework.Rendering.InstancedAnimation
             // apply the mesh data and make no longer readable to reduce memory usage
             bakedMesh.UploadMeshData(true);
 
-            return new BakedMesh(bakedMesh);
+            // get the instanced materials to use for the mesh
+            var materials = new List<Material>();
+
+            foreach (var material in renderer.sharedMaterials)
+            {
+                materials.Add(m_config.materialRemap[material]);
+            }
+
+            return new BakedMesh(bakedMesh, materials.ToArray());
         }
 
         BakedClip BakeClip(AnimationClip animation)

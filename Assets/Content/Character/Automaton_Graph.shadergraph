@@ -224,8 +224,8 @@
     ],
     "m_VertexContext": {
         "m_Position": {
-            "x": 1307.0,
-            "y": 850.0
+            "x": 1300.0,
+            "y": 810.0
         },
         "m_Blocks": [
             {
@@ -1535,7 +1535,7 @@
     },
     "m_Name": "AnimationTime",
     "m_DefaultReferenceName": "Vector1_d2fb6f43970548d8b4c352dc702fadce",
-    "m_OverrideReferenceName": "",
+    "m_OverrideReferenceName": "_InstancedAnimationTime",
     "m_GeneratePropertyBlock": true,
     "m_Precision": 0,
     "overrideHLSLDeclaration": false,
@@ -1776,7 +1776,7 @@
     },
     "m_Name": "AnimationTexture",
     "m_DefaultReferenceName": "Texture2D_ee482531e1cc4c0eb5744e37a3ed9895",
-    "m_OverrideReferenceName": "",
+    "m_OverrideReferenceName": "_InstancedAnimationTexture",
     "m_GeneratePropertyBlock": true,
     "m_Precision": 0,
     "overrideHLSLDeclaration": false,

@@ -3,7 +3,7 @@
 namespace Framework.Rendering.InstancedAnimation
 {
     /// <summary>
-    /// An asset that stores data needed for instanced animation playback.
+    /// An asset that stores content that can be played back using instanced animation.
     /// </summary>
     [CreateAssetMenu(fileName = "New InstancedAnimation", menuName = "Framework/Animation/Instanced Animation")]
     public class InstancedAnimationAsset : ScriptableObject
@@ -16,7 +16,9 @@ namespace Framework.Rendering.InstancedAnimation
         [Tooltip("The animations.")]
         BakedClip[] m_clips;
 
+        internal BakedMesh[] meshes => m_meshes;
 
+        internal BakedClip[] clips => m_clips;
 
         /// <summary>
         /// Creates a <see cref="InstancedAnimationAsset"/> instance.
