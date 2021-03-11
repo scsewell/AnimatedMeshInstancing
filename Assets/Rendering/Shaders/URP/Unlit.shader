@@ -35,7 +35,7 @@
             #pragma fragment Frag
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "../Inputs.hlsl"
+            #include "../AnimationInstancing.hlsl"
 
             struct Attributes
             {
@@ -67,7 +67,7 @@
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                Skin(instanceID, input.uv2, input.uv3, input.positionOS.xyz, input.normalOS.xyz, input.tangentOS.xyz);
+                Skin(input.uv2, input.uv3, input.positionOS.xyz, input.normalOS.xyz, input.tangentOS.xyz);
 
                 VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
 

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using Unity.Collections;
+using Unity.Jobs;
+using Unity.Burst;
 
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -109,26 +111,34 @@ namespace Framework.Rendering.InstancedAnimation
                 return;
             }
 
-            UnityEngine.Random.seed = 34;
-
-            for (var i = 0; i < m_instanceCount; i++)
+            var configureInstancesJob = new ConfigureInstancesJob
             {
-                var offset = 0.5f * UnityEngine.Random.insideUnitSphere;
-                offset.y = 0;
+                instanceCount = m_instanceCount,
+                instanceProperties = m_instanceData,
+                time = Time.time,
+            };
 
-                var edgeLength = Mathf.CeilToInt(Mathf.Sqrt(m_instanceCount));
-                var pos = new Vector3(-Mathf.Repeat(i, edgeLength), 0, -Mathf.Floor(i / edgeLength)) + offset;
-                var rot = Quaternion.Euler(0, UnityEngine.Random.value * 30f - 15f, 0);
-                var scale = Vector3.one * Mathf.Lerp(0.9f, 2.0f, Mathf.Pow(UnityEngine.Random.value, 20.0f));
-                var matrix = Matrix4x4.TRS(pos, rot, scale);
+            var handle = configureInstancesJob.Schedule(m_instanceCount, 64);
+            handle.Complete();
 
-                m_instanceData[i] = new InstanceProperties
-                {
-                    model = matrix,
-                    modelInv = matrix.inverse,
-                    time = (Time.time / (2f * scale.magnitude)) + UnityEngine.Random.value,
-                };
-            }
+            //for (var i = 0; i < m_instanceCount; i++)
+            //{
+            //    var offset = 0.5f * UnityEngine.Random.insideUnitSphere;
+            //    offset.y = 0;
+
+            //    var edgeLength = Mathf.CeilToInt(Mathf.Sqrt(m_instanceCount));
+            //    var pos = new Vector3(-Mathf.Repeat(i, edgeLength), 0, -Mathf.Floor(i / edgeLength)) + offset;
+            //    var rot = Quaternion.Euler(0, UnityEngine.Random.value * 30f - 15f, 0);
+            //    var scale = Vector3.one * Mathf.Lerp(0.9f, 2.0f, Mathf.Pow(UnityEngine.Random.value, 20.0f));
+            //    var matrix = Matrix4x4.TRS(pos, rot, scale);
+
+            //    m_instanceData[i] = new InstanceProperties
+            //    {
+            //        model = matrix,
+            //        modelInv = matrix.inverse,
+            //        time = (Time.time / (2f * scale.magnitude)) + UnityEngine.Random.value,
+            //    };
+            //}
 
             m_instanceBuffer.SetData(m_instanceData, 0, 0, m_instanceCount);
 
@@ -152,6 +162,31 @@ namespace Framework.Rendering.InstancedAnimation
                 );
             }
         }
+        
+        [BurstCompile]
+        struct ConfigureInstancesJob : IJobParallelFor
+        {
+            public NativeArray<InstanceProperties> instanceProperties;
+            public int instanceCount;
+            public float time;
+
+            public void Execute(int i)
+            {
+                var edgeLength = Mathf.CeilToInt(Mathf.Sqrt(instanceCount));
+                var pos = new Vector3(-Mathf.Repeat(i, edgeLength), 0, -Mathf.Floor(i / edgeLength));
+                //var rot = Quaternion.Euler(0, UnityEngine.Random.value * 30f - 15f, 0);
+                //var scale = Vector3.one * Mathf.Lerp(0.9f, 2.0f, Mathf.Pow(UnityEngine.Random.value, 20.0f));
+                var matrix = Matrix4x4.TRS(pos, Quaternion.identity, Vector3.one);
+
+                instanceProperties[i] = new InstanceProperties
+                {
+                    model = matrix,
+                    modelInv = matrix.inverse,
+                    time = time + pos.magnitude,
+                };
+            }
+        }
+
 
         bool IsActive()
         {
@@ -192,8 +227,7 @@ namespace Framework.Rendering.InstancedAnimation
                         material = material,
                     });
 
-                    material.SetTexture(k_animationProp, m_animationAsset.clips[0].Animation);
-                    material.enableInstancing = true;
+                    material.SetTexture(k_animationProp, m_animationAsset.clips[0].Texture);
                 }
             }
 

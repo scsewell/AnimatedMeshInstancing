@@ -18,21 +18,35 @@ namespace Framework.Rendering.InstancedAnimation
 
         static class Contents
         {
+            public static readonly float spacing = 21f;
+
             public static readonly GUIContent animator = new GUIContent("Animator", "The animator to bake.");
+            
+            public static readonly GUILayoutOption mappingWidth = GUILayout.Width(150f);
+            public static readonly GUIContent animation = new GUIContent("Clip");
+            public static readonly GUIContent frameRate = new GUIContent("Frame Rate");
+            
             public static readonly GUIContent originalMaterial = new GUIContent("Original");
             public static readonly GUIContent instancedMaterial = new GUIContent("Instanced");
+            
             public static readonly GUIContent directory = new GUIContent("Directory", "The directory to save the baked data in.");
             public static readonly GUILayoutOption directoryMinWidth = GUILayout.MinWidth(0f);
             public static readonly GUIContent directorySelector = new GUIContent("\u2299", "Select a directory.");
             public static readonly GUILayoutOption directorySelectorWidth = GUILayout.Width(22f);
+
+            public static readonly GUIContent bakeButton = new GUIContent("Bake");
+            public static readonly GUILayoutOption[] bakeButtonSize = { GUILayout.Width(150f) , GUILayout.Height(25f) };
         }
+
+        [SerializeField]
+        Vector2 m_scroll = Vector2.zero;
 
         [SerializeField]
         Animator m_animator = null;
         [SerializeField]
-        Material[] m_originalMaterials = null;
+        SerializableDictionary<AnimationClip, float> m_frameRates = null;
         [SerializeField]
-        Material[] m_remappedMaterials = null;
+        SerializableDictionary<Material, Material> m_materialRemap = null;
         [SerializeField]
         string m_path = k_AssetsPath;
 
@@ -59,33 +73,44 @@ namespace Framework.Rendering.InstancedAnimation
 
         public void OnGUI()
         {
-            Input();
-
-            EditorGUILayout.Space();
-
-            MaterialRemapping();
-
-            EditorGUILayout.Space();
-
-            Output();
-
-            EditorGUILayout.Space();
-            EditorGUILayout.Space();
-
-            // bake button
-            using (new EditorGUILayout.HorizontalScope())
-            using (new EditorGUI.DisabledGroupScope(!CanBake(false)))
+            using (var scroll = new EditorGUILayout.ScrollViewScope(m_scroll))
             {
-                GUILayout.FlexibleSpace();
+                m_scroll = scroll.scrollPosition;
 
-                if (GUILayout.Button("Bake", GUILayout.Width(100)))
+                // bake configuration
+                Input();
+
+                EditorGUILayout.Space(Contents.spacing);
+
+                AnimationConfig();
+
+                EditorGUILayout.Space(Contents.spacing);
+
+                MaterialRemapping();
+
+                EditorGUILayout.Space(Contents.spacing);
+
+                Output();
+
+                EditorGUILayout.Space(Contents.spacing);
+
+                // bake button
+                using (new EditorGUILayout.HorizontalScope())
+                using (new EditorGUI.DisabledGroupScope(!CanBake(false)))
                 {
-                    Bake();
-                }
-            }
+                    GUILayout.FlexibleSpace();
 
-            // diplay messages explaining any issues
-            CanBake(true);
+                    if (GUILayout.Button(Contents.bakeButton, Contents.bakeButtonSize))
+                    {
+                        Bake();
+                    }
+
+                    GUILayout.FlexibleSpace();
+                }
+
+                // diplay messages explaining any issues
+                CanBake(true);
+            }
         }
 
         void Input()
@@ -105,59 +130,93 @@ namespace Framework.Rendering.InstancedAnimation
             }
         }
 
+        void AnimationConfig()
+        {
+            if (m_animator == null)
+            {
+                return;
+            }
+
+            var controller = m_animator.runtimeAnimatorController as AnimatorController;
+            var animations = controller.animationClips;
+
+            EditorGUILayout.LabelField("Animations", EditorStyles.boldLabel);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(Contents.animation, Contents.mappingWidth);
+                EditorGUILayout.LabelField(Contents.frameRate, GUILayout.MinWidth(0f));
+            }
+
+            for (var i = 0; i < animations.Length; i++)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                using (var change = new EditorGUI.ChangeCheckScope())
+                {
+                    var animation = animations[i];
+
+                    if (!m_frameRates.TryGetValue(animation, out var frameRate))
+                    {
+                        frameRate = animation.frameRate;
+                        m_frameRates.Add(animation, frameRate);
+                    }
+
+                    using (new EditorGUI.DisabledGroupScope(true))
+                    {
+                        EditorGUILayout.ObjectField(GUIContent.none, animation, typeof(AnimationClip), false, Contents.mappingWidth);
+                    }
+
+                    var currentRate = Mathf.RoundToInt(frameRate);
+                    var maxRate = Mathf.RoundToInt(animation.frameRate);
+                    var newRate = EditorGUILayout.IntSlider(currentRate, 1, maxRate, GUILayout.MinWidth(0f));
+
+                    if (change.changed)
+                    {
+                        Undo.RecordObject(this, "Set Frame Rate");
+                        m_frameRates[animation] = newRate;
+                        EditorUtility.SetDirty(this);
+                    }
+                }
+            }
+        }
+
         void MaterialRemapping()
         {
             if (m_animator == null)
             {
-                m_originalMaterials = null;
                 return;
             }
 
-            m_originalMaterials = m_animator
-                .GetComponentsInChildren<SkinnedMeshRenderer>(true)
-                .SelectMany(r => r.sharedMaterials)
-                .Where(m => m != null)
-                .Distinct()
-                .ToArray();
+            var originalMaterials = GetOriginalMaterials();
 
-            if (m_remappedMaterials == null)
-            {
-                m_remappedMaterials = new Material[m_originalMaterials.Length];
-            }
-            else if (m_remappedMaterials.Length < m_originalMaterials.Length)
-            {
-                Array.Resize(ref m_remappedMaterials, m_originalMaterials.Length);
-            }
-
-            if (m_originalMaterials.Length == 0)
-            {
-                return;
-            }
-
-            EditorGUILayout.LabelField("Material Remapping", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Materials", EditorStyles.boldLabel);
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField(Contents.originalMaterial, GUILayout.MinWidth(0f));
+                EditorGUILayout.LabelField(Contents.originalMaterial, Contents.mappingWidth);
                 EditorGUILayout.LabelField(Contents.instancedMaterial, GUILayout.MinWidth(0f));
             }
 
-            for (var i = 0; i < m_originalMaterials.Length; i++)
+            for (var i = 0; i < originalMaterials.Length; i++)
             {
+                var originalMat = originalMaterials[i];
+
+                m_materialRemap.TryGetValue(originalMat, out var remappedMat);
+
                 using (new EditorGUILayout.HorizontalScope())
                 using (var change = new EditorGUI.ChangeCheckScope())
                 {
                     using (new EditorGUI.DisabledGroupScope(true))
                     {
-                        EditorGUILayout.ObjectField(GUIContent.none, m_originalMaterials[i], typeof(Material), false, GUILayout.MinWidth(0f));
+                        EditorGUILayout.ObjectField(GUIContent.none, originalMat, typeof(Material), false, Contents.mappingWidth);
                     }
 
-                    var mat = EditorGUILayout.ObjectField(GUIContent.none, m_remappedMaterials[i], typeof(Material), false, GUILayout.MinWidth(0f)) as Material;
+                    var newMat = EditorGUILayout.ObjectField(GUIContent.none, remappedMat, typeof(Material), false, GUILayout.MinWidth(0f)) as Material;
 
                     if (change.changed)
                     {
                         Undo.RecordObject(this, "Set Material");
-                        m_remappedMaterials[i] = mat;
+                        m_materialRemap[originalMat] = newMat;
                         EditorUtility.SetDirty(this);
                     }
                 }
@@ -210,18 +269,13 @@ namespace Framework.Rendering.InstancedAnimation
         {
             var controller = m_animator.runtimeAnimatorController as AnimatorController;
 
-            var remap = new Dictionary<Material, Material>();
-            for (var i = 0; i < m_originalMaterials.Length; i++)
-            {
-                remap.Add(m_originalMaterials[i], m_remappedMaterials[i]);
-            }
-
             var config = new BakeConfig
             {
                 animator = m_animator,
                 animations = controller.animationClips,
+                frameRates = m_frameRates,
                 renderers = m_animator.GetComponentsInChildren<SkinnedMeshRenderer>(true),
-                materialRemap = remap,
+                materialRemap = m_materialRemap,
             };
 
             var baker = new Baker(config);
@@ -295,19 +349,19 @@ namespace Framework.Rendering.InstancedAnimation
                     }
                 }
 
-                for (var i = 0; i < m_originalMaterials.Length; i++)
-                {
-                    var originalMat = m_originalMaterials[i];
-                    var remappedMat = m_remappedMaterials[i];
+                var originalMaterials = GetOriginalMaterials();
 
-                    if (remappedMat == null)
+                for (var i = 0; i < originalMaterials.Length; i++)
+                {
+                    var originalMat = originalMaterials[i];
+
+                    if (!m_materialRemap.TryGetValue(originalMat, out var remapped) || remapped == null)
                     {
                         if (drawMessages)
                         {
                             EditorGUILayout.HelpBox($"Material \"{originalMat.name}\" must be remapped. Assign a material with a shader that supports instanced animation.", MessageType.Warning);
                         }
                         canBake = false;
-                        break;
                     }
                 }
             }
@@ -337,6 +391,16 @@ namespace Framework.Rendering.InstancedAnimation
             }
 
             return canBake;
+        }
+
+        Material[] GetOriginalMaterials()
+        {
+            return m_animator
+                .GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                .SelectMany(r => r.sharedMaterials)
+                .Where(m => m != null)
+                .Distinct()
+                .ToArray();
         }
     }
 }

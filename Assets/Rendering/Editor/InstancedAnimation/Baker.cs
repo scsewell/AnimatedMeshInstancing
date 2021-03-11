@@ -11,6 +11,7 @@ namespace Framework.Rendering.InstancedAnimation
     {
         public Animator animator;
         public AnimationClip[] animations;
+        public Dictionary<AnimationClip, float> frameRates;
         public SkinnedMeshRenderer[] renderers;
         public Dictionary<Material, Material> materialRemap;
     }
@@ -19,7 +20,7 @@ namespace Framework.Rendering.InstancedAnimation
     {
         readonly BakeConfig m_config;
         readonly List<BakedMesh> m_meshes = new List<BakedMesh>();
-        readonly List<BakedClip> m_clips = new List<BakedClip>();
+        readonly List<Animation> m_animations = new List<Animation>();
 
         Transform[] m_bones;
         Matrix4x4[] m_bindPoses;
@@ -88,7 +89,7 @@ namespace Framework.Rendering.InstancedAnimation
 
         bool BakeAnimations()
         {
-            m_clips.Clear();
+            m_animations.Clear();
 
             try
             {
@@ -111,7 +112,7 @@ namespace Framework.Rendering.InstancedAnimation
                     }
 
                     var bake = BakeClip(animation);
-                    m_clips.Add(bake);
+                    m_animations.Add(bake);
                 }
 
                 return false;
@@ -230,22 +231,34 @@ namespace Framework.Rendering.InstancedAnimation
             return new BakedMesh(bakedMesh, materials.ToArray());
         }
 
-        BakedClip BakeClip(AnimationClip animation)
+        Animation BakeClip(AnimationClip animation)
         {
             var animator = m_config.animator.gameObject;
+            var frameRate = m_config.frameRates[animation];
 
             // The top half of texture contains rotation data, the top half position data,
             // so each bone needs to rows. Each column represents a frame of animation.
-            var length = Mathf.RoundToInt(animation.length * animation.frameRate);
+            var length = Mathf.RoundToInt(animation.length * frameRate);
 
             var texture = new Texture2D(length, m_bones.Length * 2, GraphicsFormat.R16G16B16A16_SFloat, 0, TextureCreationFlags.None)
             {
                 name = $"Anim_{animation.name}",
                 filterMode = FilterMode.Bilinear,
+                anisoLevel = 0,
             };
 
-            // bake the animation to the texture data
+            // Bake the animation to the texture data, while finding the bounds of the meshes
+            // during the course of the animation.
             var values = new ushort[texture.width * texture.height * 4];
+
+            var bounds = default(Bounds);
+            var boundsInitialized = false;
+            var boundsMeshes = new Mesh[m_config.renderers.Length];
+
+            for (var i = 0; i < boundsMeshes.Length; i++)
+            {
+                boundsMeshes[i] = new Mesh();
+            }
 
             for (var frame = 0; frame < length; frame++)
             {
@@ -255,8 +268,8 @@ namespace Framework.Rendering.InstancedAnimation
                 // play a frame in the animation
                 AnimationMode.BeginSampling();
                 AnimationMode.SampleAnimationClip(animator, animation, time);
-                
-                // bake the frame
+
+                // bake the column in the animation texture for the frame
                 var x = frame * 4;
                 var rowLength = length * 4;
                 var halfOffset = rowLength * m_bones.Length;
@@ -285,6 +298,29 @@ namespace Framework.Rendering.InstancedAnimation
                     values[halfOffset + y + x + 3] = Mathf.FloatToHalf(rot.w);
                 }
 
+                // calculate the bounds for the meshes for the frame in the animator's space
+                for (var i = 0; i < boundsMeshes.Length; i++)
+                {
+                    var mesh = boundsMeshes[i];
+                    var renderer = m_config.renderers[i];
+                    var transform = renderer.transform;
+
+                    renderer.BakeMesh(mesh);
+
+                    if (TryGetTransformedBounds(mesh.vertices, transform, animator.transform, out var meshBounds))
+                    {
+                        if (!boundsInitialized)
+                        {
+                            bounds = meshBounds;
+                            boundsInitialized = true;
+                        }
+                        else
+                        {
+                            bounds.Encapsulate(meshBounds);
+                        }
+                    }
+                }
+
                 AnimationMode.EndSampling();
             }
 
@@ -292,7 +328,7 @@ namespace Framework.Rendering.InstancedAnimation
             texture.SetPixelData(values, 0);
             texture.Apply(false, true);
 
-            return new BakedClip(texture);
+            return new Animation(texture, animation.length, frameRate, bounds);
         }
 
         /// <summary>
@@ -307,7 +343,7 @@ namespace Framework.Rendering.InstancedAnimation
                 // create the asset
                 EditorUtility.DisplayProgressBar("Creating Asset", string.Empty, 1f);
 
-                var asset = InstancedAnimationAsset.Create(m_meshes.ToArray(), m_clips.ToArray());
+                var asset = InstancedAnimationAsset.Create(m_meshes.ToArray(), m_animations.ToArray());
 
                 // Save the generated asset and meshes. The asset file extention is special and is recognized by unity.
                 var uniquePath = AssetDatabase.GenerateUniqueAssetPath($"{assetPath}/{m_config.animator.name}.asset");
@@ -317,9 +353,9 @@ namespace Framework.Rendering.InstancedAnimation
                 {
                     AssetDatabase.AddObjectToAsset(mesh.Mesh, asset);
                 }
-                foreach (var clip in m_clips)
+                foreach (var clip in m_animations)
                 {
-                    AssetDatabase.AddObjectToAsset(clip.Animation, asset);
+                    AssetDatabase.AddObjectToAsset(clip.Texture, asset);
                 }
 
                 AssetDatabase.SaveAssets();
@@ -331,6 +367,36 @@ namespace Framework.Rendering.InstancedAnimation
             {
                 EditorUtility.ClearProgressBar();
             }
+        }
+
+        bool TryGetTransformedBounds(Vector3[] vertices, Transform from, Transform to, out Bounds bounds)
+        {
+            if (vertices.Length == 0)
+            {
+                bounds = default;
+                return false;
+            }
+
+            var localToWorld = from.localToWorldMatrix;
+            var worldToLocal = to.worldToLocalMatrix;
+
+            var min = float.MaxValue * Vector3.one;
+            var max = float.MinValue * Vector3.one;
+
+            for (var i = 0; i < vertices.Length; i++)
+            {
+                var vert = vertices[i];
+                vert = localToWorld.MultiplyPoint3x4(vert);
+                vert = worldToLocal.MultiplyPoint3x4(vert);
+
+                min = Vector3.Min(min, vert);
+                max = Vector3.Max(max, vert);
+            }
+
+            var center = (max + min) * 0.5f;
+            var size = max - min;
+            bounds = new Bounds(center, size);
+            return true;
         }
     }
 }

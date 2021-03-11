@@ -14,18 +14,18 @@ namespace Framework.Rendering.InstancedAnimation
 
         [SerializeField]
         [Tooltip("The animations.")]
-        BakedClip[] m_clips;
+        Animation[] m_clips;
 
         internal BakedMesh[] meshes => m_meshes;
 
-        internal BakedClip[] clips => m_clips;
+        internal Animation[] clips => m_clips;
 
         /// <summary>
         /// Creates a <see cref="InstancedAnimationAsset"/> instance.
         /// </summary>
         /// <param name="meshes"></param>
         /// <param name="clips"></param>
-        public static InstancedAnimationAsset Create(BakedMesh[] meshes, BakedClip[] clips)
+        public static InstancedAnimationAsset Create(BakedMesh[] meshes, Animation[] clips)
         {
             var asset = CreateInstance<InstancedAnimationAsset>();
             asset.m_meshes = meshes;
