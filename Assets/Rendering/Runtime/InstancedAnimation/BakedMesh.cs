@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Framework.Rendering.InstancedAnimation
 {
     [Serializable]
-    public class BakedMesh
+    public struct BakedMesh
     {
         [SerializeField]
         Mesh m_mesh;

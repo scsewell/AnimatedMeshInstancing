@@ -13,14 +13,24 @@ namespace Framework.Rendering.InstancedAnimation
 {
     public class InstancedAnimator : MonoBehaviour
     {
-        static readonly int k_animationProp = Shader.PropertyToID("_Animation");
         static readonly int k_instanceBufferProp = Shader.PropertyToID("_InstanceProperties");
+        static readonly int k_animationTextureProp = Shader.PropertyToID("_Animation");
+        static readonly int k_animationRegionsBufferProp = Shader.PropertyToID("_AnimationRegions");
 
         struct SubMeshData
         {
             public Mesh mesh;
             public int subMeshIndex;
             public Material material;
+        }
+
+        struct InstanceProperties
+        {
+            public static readonly int k_size = Marshal.SizeOf<InstanceProperties>();
+
+            public Matrix4x4 model;
+            public Matrix4x4 modelInv;
+            public float time;
         }
 
         struct SubMeshArgs
@@ -34,13 +44,12 @@ namespace Framework.Rendering.InstancedAnimation
             public uint instanceStart;
         }
 
-        struct InstanceProperties
+        struct AnimationRegion
         {
-            public static readonly int k_size = Marshal.SizeOf<InstanceProperties>();
+            public static readonly int k_size = Marshal.SizeOf<AnimationRegion>();
 
-            public Matrix4x4 model;
-            public Matrix4x4 modelInv;
-            public float time;
+            public Vector2 min;
+            public Vector2 max;
         }
 
         [SerializeField]
@@ -55,6 +64,7 @@ namespace Framework.Rendering.InstancedAnimation
         SubMeshData[] m_subMeshes;
         NativeArray<SubMeshArgs> m_argsData;
         ComputeBuffer m_argsBuffer;
+        ComputeBuffer m_animationRegionsBuffer;
 
         /// <summary>
         /// The animation asset containing the animated content to play.
@@ -202,8 +212,31 @@ namespace Framework.Rendering.InstancedAnimation
                 return;
             }
 
+            var texture = m_animationAsset.Texture;
+            var meshes = m_animationAsset.Meshes;
+            var animations = m_animationAsset.Animations;
+
+            // create a buffer describing where to read each animation in the animation texture
+            var regions = new NativeArray<AnimationRegion>(animations.Length, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+            for (var i = 0; i < regions.Length; i++)
+            {
+                var region = animations[i].Region;
+
+                regions[i] = new AnimationRegion
+                {
+                    min = region.min,
+                    max = region.max,
+                };
+            }
+
+            m_animationRegionsBuffer = new ComputeBuffer(animations.Length, AnimationRegion.k_size)
+            {
+                name = $"{name}AnimationRegions",
+            };
+            m_animationRegionsBuffer.SetData(regions);
+
             // Get the submeshes to render
-            var meshes = m_animationAsset.meshes;
             var subMeshes = new List<SubMeshData>();
 
             for (var i = 0; i < meshes.Length; i++)
@@ -227,18 +260,14 @@ namespace Framework.Rendering.InstancedAnimation
                         material = material,
                     });
 
-                    material.SetTexture(k_animationProp, m_animationAsset.clips[0].Texture);
+                    material.SetTexture(k_animationTextureProp, texture);
+                    material.SetBuffer(k_animationRegionsBufferProp, m_animationRegionsBuffer);
                 }
             }
 
             m_subMeshes = subMeshes.ToArray();
 
             // create and initialize the draw args buffer
-            m_argsBuffer = new ComputeBuffer(m_subMeshes.Length, SubMeshArgs.k_size, ComputeBufferType.IndirectArguments)
-            {
-                name = $"{name}IndirectArgs",
-            };
-
             m_argsData = new NativeArray<SubMeshArgs>(m_subMeshes.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
             for (var i = 0; i < m_subMeshes.Length; i++)
@@ -256,7 +285,12 @@ namespace Framework.Rendering.InstancedAnimation
                 };
             }
 
+            m_argsBuffer = new ComputeBuffer(m_subMeshes.Length, SubMeshArgs.k_size, ComputeBufferType.IndirectArguments)
+            {
+                name = $"{name}IndirectArgs",
+            };
             m_argsBuffer.SetData(m_argsData);
+
             m_buffersCreated = true;
         }
 
@@ -285,6 +319,11 @@ namespace Framework.Rendering.InstancedAnimation
             {
                 m_argsBuffer.Release();
                 m_argsBuffer = null;
+            }
+            if (m_animationRegionsBuffer != null)
+            {
+                m_animationRegionsBuffer.Release();
+                m_animationRegionsBuffer = null;
             }
         }
 
