@@ -1,4 +1,4 @@
-using Framework.Rendering.InstancedAnimation;
+using InstancedAnimation;
 
 using UnityEngine;
 

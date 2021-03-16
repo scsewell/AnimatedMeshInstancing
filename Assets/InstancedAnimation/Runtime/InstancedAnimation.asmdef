@@ -1,6 +1,6 @@
 {
-    "name": "Framework.Rendering",
-    "rootNamespace": "Framework.Rendering",
+    "name": "InstancedAnimation",
+    "rootNamespace": "InstancedAnimation",
     "references": [
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.Mathematics",

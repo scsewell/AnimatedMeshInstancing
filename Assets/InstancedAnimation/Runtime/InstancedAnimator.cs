@@ -9,7 +9,7 @@ using Unity.Burst;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     public class InstancedAnimator : MonoBehaviour
     {

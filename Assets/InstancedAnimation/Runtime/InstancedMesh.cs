@@ -2,7 +2,7 @@
 
 using UnityEngine;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     /// <summary>
     /// A struct describing the lod for an instanced mesh.

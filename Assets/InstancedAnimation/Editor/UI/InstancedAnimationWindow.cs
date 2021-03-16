@@ -7,7 +7,7 @@ using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     /// <summary>
     /// A window used to bake animation data for instanced meshes.

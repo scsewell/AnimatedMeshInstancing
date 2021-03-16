@@ -1,8 +1,8 @@
 {
-    "name": "Framework.Rendering.Editor",
-    "rootNamespace": "Framework.Rendering",
+    "name": "InstancedAnimation.Editor",
+    "rootNamespace": "InstancedAnimation",
     "references": [
-        "Framework.Rendering",
+        "InstancedAnimation",
         "Unity.Mathematics",
         "Unity.Burst"
     ],

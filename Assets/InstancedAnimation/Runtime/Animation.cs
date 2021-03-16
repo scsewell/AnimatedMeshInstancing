@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     /// <summary>
     /// A class that stores a baked animation.

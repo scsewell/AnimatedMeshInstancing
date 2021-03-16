@@ -1,14 +1,12 @@
-﻿using System;
+﻿using UnityEngine;
 
-using UnityEngine;
-
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     /// <summary>
     /// An asset that contains referenced to required resources.
     /// </summary>
     [CreateAssetMenu(fileName = "New Resources", menuName = "Framework/Animation/Resources")]
-    public class Resources
+    public class Resources : ScriptableObject
     {
         [SerializeField]
         ComputeShader m_culling;

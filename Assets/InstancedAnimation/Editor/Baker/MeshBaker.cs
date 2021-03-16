@@ -8,7 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     partial class Baker
     {

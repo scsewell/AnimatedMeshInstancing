@@ -4,7 +4,7 @@ using UnityEditor;
 
 using UnityEngine;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     public enum VertexCompression
     {

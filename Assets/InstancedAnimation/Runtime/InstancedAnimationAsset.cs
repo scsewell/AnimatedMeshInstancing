@@ -2,7 +2,7 @@
 
 using UnityEngine;
 
-namespace Framework.Rendering.InstancedAnimation
+namespace InstancedAnimation
 {
     /// <summary>
     /// An asset that stores content that can be played back using instanced animation.
