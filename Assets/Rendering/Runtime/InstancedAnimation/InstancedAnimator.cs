@@ -17,22 +17,26 @@ namespace Framework.Rendering.InstancedAnimation
         static readonly int k_animationTextureProp = Shader.PropertyToID("_Animation");
         static readonly int k_animationRegionsBufferProp = Shader.PropertyToID("_AnimationRegions");
 
-        struct SubMeshData
+        struct MeshData
         {
             public Mesh mesh;
             public int subMeshIndex;
             public Material material;
+            public MaterialPropertyBlock propertyBlock;
         }
 
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct InstanceProperties
         {
             public static readonly int k_size = Marshal.SizeOf<InstanceProperties>();
 
             public Matrix4x4 model;
             public Matrix4x4 modelInv;
+            public uint animation;
             public float time;
         }
 
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct SubMeshArgs
         {
             public static readonly int k_size = Marshal.SizeOf<SubMeshArgs>();
@@ -44,6 +48,7 @@ namespace Framework.Rendering.InstancedAnimation
             public uint instanceStart;
         }
 
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct AnimationRegion
         {
             public static readonly int k_size = Marshal.SizeOf<AnimationRegion>();
@@ -55,13 +60,15 @@ namespace Framework.Rendering.InstancedAnimation
         [SerializeField]
         [Tooltip("The animation asset containing the animated content to play.")]
         InstancedAnimationAsset m_animationAsset = null;
+        [SerializeField]
+        Material m_material = null;
 
         int m_instanceCount;
         NativeArray<InstanceProperties> m_instanceData;
         ComputeBuffer m_instanceBuffer;
 
         bool m_buffersCreated;
-        SubMeshData[] m_subMeshes;
+        MeshData[] m_subMeshes;
         NativeArray<SubMeshArgs> m_argsData;
         ComputeBuffer m_argsBuffer;
         ComputeBuffer m_animationRegionsBuffer;
@@ -121,34 +128,26 @@ namespace Framework.Rendering.InstancedAnimation
                 return;
             }
 
+            var animations = new NativeArray<AnimationInfo>(m_animationAsset.Animations.Length, Allocator.TempJob);
+
+            for (var i = 0; i < animations.Length; i++)
+            {
+                animations[i] = new AnimationInfo
+                {
+                    length = m_animationAsset.Animations[i].Length,
+                };
+            }
+
             var configureInstancesJob = new ConfigureInstancesJob
             {
                 instanceCount = m_instanceCount,
                 instanceProperties = m_instanceData,
+                animations = animations,
                 time = Time.time,
             };
 
             var handle = configureInstancesJob.Schedule(m_instanceCount, 64);
             handle.Complete();
-
-            //for (var i = 0; i < m_instanceCount; i++)
-            //{
-            //    var offset = 0.5f * UnityEngine.Random.insideUnitSphere;
-            //    offset.y = 0;
-
-            //    var edgeLength = Mathf.CeilToInt(Mathf.Sqrt(m_instanceCount));
-            //    var pos = new Vector3(-Mathf.Repeat(i, edgeLength), 0, -Mathf.Floor(i / edgeLength)) + offset;
-            //    var rot = Quaternion.Euler(0, UnityEngine.Random.value * 30f - 15f, 0);
-            //    var scale = Vector3.one * Mathf.Lerp(0.9f, 2.0f, Mathf.Pow(UnityEngine.Random.value, 20.0f));
-            //    var matrix = Matrix4x4.TRS(pos, rot, scale);
-
-            //    m_instanceData[i] = new InstanceProperties
-            //    {
-            //        model = matrix,
-            //        modelInv = matrix.inverse,
-            //        time = (Time.time / (2f * scale.magnitude)) + UnityEngine.Random.value,
-            //    };
-            //}
 
             m_instanceBuffer.SetData(m_instanceData, 0, 0, m_instanceCount);
 
@@ -172,11 +171,17 @@ namespace Framework.Rendering.InstancedAnimation
                 );
             }
         }
-        
-        [BurstCompile]
+
+        struct AnimationInfo
+        {
+            public float length;
+        }
+
         struct ConfigureInstancesJob : IJobParallelFor
         {
             public NativeArray<InstanceProperties> instanceProperties;
+            [ReadOnly, DeallocateOnJobCompletion]
+            public NativeArray<AnimationInfo> animations;
             public int instanceCount;
             public float time;
 
@@ -184,19 +189,19 @@ namespace Framework.Rendering.InstancedAnimation
             {
                 var edgeLength = Mathf.CeilToInt(Mathf.Sqrt(instanceCount));
                 var pos = new Vector3(-Mathf.Repeat(i, edgeLength), 0, -Mathf.Floor(i / edgeLength));
-                //var rot = Quaternion.Euler(0, UnityEngine.Random.value * 30f - 15f, 0);
-                //var scale = Vector3.one * Mathf.Lerp(0.9f, 2.0f, Mathf.Pow(UnityEngine.Random.value, 20.0f));
                 var matrix = Matrix4x4.TRS(pos, Quaternion.identity, Vector3.one);
 
+                var animationIndex = i % animations.Length;
+                
                 instanceProperties[i] = new InstanceProperties
                 {
                     model = matrix,
                     modelInv = matrix.inverse,
-                    time = time + pos.magnitude,
+                    animation = (uint)animationIndex,
+                    time = Mathf.Repeat((time + pos.magnitude) / animations[animationIndex].length, 1f),
                 };
             }
         }
-
 
         bool IsActive()
         {
@@ -237,7 +242,7 @@ namespace Framework.Rendering.InstancedAnimation
             m_animationRegionsBuffer.SetData(regions);
 
             // Get the submeshes to render
-            var subMeshes = new List<SubMeshData>();
+            var subMeshes = new List<MeshData>();
 
             for (var i = 0; i < meshes.Length; i++)
             {
@@ -248,21 +253,16 @@ namespace Framework.Rendering.InstancedAnimation
                     continue;
                 }
 
-                for (var j = 0; j < mesh.subMeshCount; j++)
+                subMeshes.Add(new MeshData
                 {
-                    // TODO: only duplicate one instance per material
-                    var material = new Material(meshes[i].Materials[j]);
+                    mesh = mesh,
+                    subMeshIndex = 0,
+                    material = m_material,
+                    propertyBlock = new MaterialPropertyBlock(),
+                });
 
-                    subMeshes.Add(new SubMeshData
-                    {
-                        mesh = mesh,
-                        subMeshIndex = j,
-                        material = material,
-                    });
-
-                    material.SetTexture(k_animationTextureProp, texture);
-                    material.SetBuffer(k_animationRegionsBufferProp, m_animationRegionsBuffer);
-                }
+                //material.SetTexture(k_animationTextureProp, texture);
+                //material.SetBuffer(k_animationRegionsBufferProp, m_animationRegionsBuffer);
             }
 
             m_subMeshes = subMeshes.ToArray();

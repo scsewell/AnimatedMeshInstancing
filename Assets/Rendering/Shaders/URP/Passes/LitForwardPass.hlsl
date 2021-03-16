@@ -9,7 +9,6 @@ struct AttributesAnimated
     float3 normalOS     : NORMAL;
     float4 tangentOS    : TANGENT;
     float2 texcoord     : TEXCOORD0;
-    float2 lightmapUV   : TEXCOORD1;
     float2 uv2          : TEXCOORD2;
     float2 uv3          : TEXCOORD3;
     UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -23,7 +22,7 @@ Varyings LitPassVertexAnimated(AttributesAnimated input)
     UNITY_TRANSFER_INSTANCE_ID(input, output);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-    Skin(input.uv2, input.uv3, input.positionOS.xyz, input.normalOS.xyz, input.tangentOS.xyz);
+    Skin(input.uv2, input.uv3, input.positionOS, input.normalOS, input.tangentOS);
 
     VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
 
@@ -54,7 +53,6 @@ Varyings LitPassVertexAnimated(AttributesAnimated input)
     output.viewDirTS = viewDirTS;
 #endif
 
-    OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, output.lightmapUV);
     OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
 
     output.fogFactorAndVertexLight = half4(fogFactor, vertexLight);

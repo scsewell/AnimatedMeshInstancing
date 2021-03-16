@@ -12,7 +12,7 @@ namespace Framework.Rendering.InstancedAnimation
     {
         [SerializeField]
         [Tooltip("The meshes that can be used when playing the animation.")]
-        BakedMesh[] m_meshes;
+        InstancedMesh[] m_meshes;
 
         [SerializeField]
         [Tooltip("The texture containing the animation data.")]
@@ -25,7 +25,7 @@ namespace Framework.Rendering.InstancedAnimation
         /// <summary>
         /// The meshes that can be used when playing the animation.
         /// </summary>
-        public BakedMesh[] Meshes => m_meshes;
+        public InstancedMesh[] Meshes => m_meshes;
 
         /// <summary>
         /// The texture containing the animation data.
@@ -43,7 +43,7 @@ namespace Framework.Rendering.InstancedAnimation
         /// <param name="meshes">The meshes that can be used when playing the animations.</param>
         /// <param name="texture">The texture containing the animation data.</param>
         /// <param name="animations">The animations in the animation texture.</param>
-        public static InstancedAnimationAsset Create(BakedMesh[] meshes, Texture2D texture, Animation[] animations)
+        public static InstancedAnimationAsset Create(InstancedMesh[] meshes, Texture2D texture, Animation[] animations)
         {
             if (meshes == null)
             {

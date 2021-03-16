@@ -67,7 +67,7 @@
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                Skin(input.uv2, input.uv3, input.positionOS.xyz, input.normalOS.xyz, input.tangentOS.xyz);
+                Skin(input.uv2, input.uv3, input.positionOS, input.normalOS, input.tangentOS);
 
                 VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
 

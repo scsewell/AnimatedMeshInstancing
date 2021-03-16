@@ -2,8 +2,9 @@
     "name": "Framework.Rendering",
     "rootNamespace": "Framework.Rendering",
     "references": [
-        "Unity.Burst",
-        "Unity.RenderPipelines.Core.Runtime"
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.Mathematics",
+        "Unity.Burst"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

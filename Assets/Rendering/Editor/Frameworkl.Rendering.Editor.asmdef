@@ -2,7 +2,9 @@
     "name": "Framework.Rendering.Editor",
     "rootNamespace": "Framework.Rendering",
     "references": [
-        "Framework.Rendering"
+        "Framework.Rendering",
+        "Unity.Mathematics",
+        "Unity.Burst"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

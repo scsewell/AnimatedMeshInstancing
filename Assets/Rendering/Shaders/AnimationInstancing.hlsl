@@ -1,12 +1,17 @@
 ﻿#ifndef ANIMATION_INSTANCING_INPUT_INCLUDED
 #define ANIMATION_INSTANCING_INPUT_INCLUDED
 
+// Interpolated quaternions should be renormalized for correctness,
+// but with a high enough frame rate the effect might not be noticable.
+#define ANIMATION_INSTANCING_HIGH_QUALITY_INTERPOLATION
+
 #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
 
 struct InstanceProperties
 {
     float4x4 model;
     float4x4 modelInv;
+    uint animation;
     float time;
 };
 
@@ -27,20 +32,22 @@ float _AnimationTime;
 
 void Setup()
 {
+    InstanceProperties props = _InstanceProperties[unity_InstanceID];
+
     // set the mode matrix for the current instance
-    UNITY_MATRIX_M = _InstanceProperties[unity_InstanceID].model;
-    UNITY_MATRIX_I_M = _InstanceProperties[unity_InstanceID].modelInv;
+    UNITY_MATRIX_M = props.model;
+    UNITY_MATRIX_I_M = props.modelInv;
 
     // get the animation time of this intance
-    _AnimationTime = _InstanceProperties[unity_InstanceID].time;
+    _AnimationTime = props.time;
 
     // get the region of the animation texture atlas the required texture is in
-    _AnimationRegion = _AnimationRegions[unity_InstanceID %  8];
+    _AnimationRegion = _AnimationRegions[props.animation];
 }
 
-float3 RotatePoint(float3 p, float4 quat)
+float3 RotatePoint(float3 p, float4 q)
 {
-    return p + 2.0 * cross(quat.xyz, cross(quat.xyz, p) + (p * quat.w));
+    return p + 2.0 * cross(q.xyz, cross(q.xyz, p) + (p * q.w));
 }
 
 struct Pose
@@ -51,36 +58,58 @@ struct Pose
 
 Pose SampleAnimation(half time, half boneCoord)
 {
-    half3 min = _AnimationRegion.min.xyy;
-    half3 max = _AnimationRegion.max.xyy;
-    half3 fac = half3(time, boneCoord, boneCoord + 0.5);
+    // Sample the position and rotation for the current frame and the next frame.
+    // We interpolate between them based on the time value subframe component.
 
-    half3 uv = lerp(min, max, fac) / _Animation_TexelSize.zww;
+    // OPTMINIZE THIS----------------------
+    half length = _AnimationRegion.max.x - _AnimationRegion.min.x;
+
+    half currFrameTime = time * length;
+    half nextFrameTime = fmod(currFrameTime + 1.0, length);
+    half subFrame = frac(currFrameTime);
+
+    currFrameTime /= length;
+    nextFrameTime /= length;
+
+    half4 min = _AnimationRegion.min.xxyy;
+    half4 max = _AnimationRegion.max.xxyy;
+    half4 fac = half4(currFrameTime, nextFrameTime, boneCoord, boneCoord + 0.5);
+
+    half4 uv = lerp(min, max, fac) / _Animation_TexelSize.zzww;
+    //-----------------------------------
+
+    float3 pos0 = SAMPLE_TEXTURE2D_LOD(_Animation, sampler_Animation, uv.xz, 0).rgb;
+    float3 pos1 = SAMPLE_TEXTURE2D_LOD(_Animation, sampler_Animation, uv.yz, 0).rgb;
+    float4 rot0 = SAMPLE_TEXTURE2D_LOD(_Animation, sampler_Animation, uv.xw, 0).rgba;
+    float4 rot1 = SAMPLE_TEXTURE2D_LOD(_Animation, sampler_Animation, uv.yw, 0).rgba;
 
     Pose pose;
-    pose.position = SAMPLE_TEXTURE2D_LOD(_Animation, sampler_Animation, uv.xy, 0).rgb;
-    pose.rotation = SAMPLE_TEXTURE2D_LOD(_Animation, sampler_Animation, uv.xz, 0).rgba;
+    pose.position = lerp(pos0, pos1, subFrame);
+    pose.rotation = lerp(rot0, rot1, subFrame);
+
+#if defined(ANIMATION_INSTANCING_HIGH_QUALITY_INTERPOLATION)
+    pose.rotation = normalize(pose.rotation);
+#endif
+
     return pose;
 }
 
 #endif
 
-void Skin(float2 uv2, float2 uv3, inout float3 positionOS, inout float3 normalOS, inout float3 tangentOS)
+void Skin(float2 uv2, float2 uv3, inout float4 positionOS, inout float3 normalOS, inout float4 tangentOS)
 {
 #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
     // get the bone pose for the frame in object space
-    float time = frac(_AnimationTime * (30 / (_AnimationRegion.max.x - _AnimationRegion.min.x)));
-    
-    Pose pose = SampleAnimation(time, uv3.y);
+    Pose pose = SampleAnimation(_AnimationTime, uv3.x);
 
     // unapply the bind pose
-    float3 bindPose = float3(uv2.x, uv2.y, uv3.x);
-    float3 boneRelativePos = positionOS - bindPose;
+    float3 bindPose = float3(positionOS.w, uv2.x, uv2.y);
+    float3 boneRelativePos = positionOS.xyz - bindPose;
 
-    // Apply the bone transformation
-    positionOS = RotatePoint(boneRelativePos, pose.rotation) + pose.position;
-    normalOS = RotatePoint(normalOS, pose.rotation);
-    tangentOS = RotatePoint(tangentOS, pose.rotation);
+    // apply the bone transformation
+    positionOS.xyz = RotatePoint(boneRelativePos, pose.rotation) + pose.position;
+    normalOS.xyz = RotatePoint(normalOS.xyz, pose.rotation);
+    tangentOS.xyz = RotatePoint(tangentOS.xyz, pose.rotation);
 #endif
 }
 

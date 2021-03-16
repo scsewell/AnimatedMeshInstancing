@@ -1,11 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 using UnityEditor;
 using UnityEditor.Animations;
 
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Framework.Rendering.InstancedAnimation
 {
@@ -28,7 +28,9 @@ namespace Framework.Rendering.InstancedAnimation
             
             public static readonly GUIContent originalMaterial = new GUIContent("Original");
             public static readonly GUIContent instancedMaterial = new GUIContent("Instanced");
-            
+
+            public static readonly GUIContent vertexCompression = new GUIContent("Compression", "Reduces the size of the mesh in memory.");
+
             public static readonly GUIContent directory = new GUIContent("Directory", "The directory to save the baked data in.");
             public static readonly GUILayoutOption directoryMinWidth = GUILayout.MinWidth(0f);
             public static readonly GUIContent directorySelector = new GUIContent("\u2299", "Select a directory.");
@@ -47,6 +49,8 @@ namespace Framework.Rendering.InstancedAnimation
         SerializableDictionary<AnimationClip, float> m_frameRates = null;
         [SerializeField]
         SerializableDictionary<Material, Material> m_materialRemap = null;
+        [SerializeField]
+        VertexCompression m_vertexCompression = VertexCompression.High;
         [SerializeField]
         string m_path = k_AssetsPath;
 
@@ -79,20 +83,10 @@ namespace Framework.Rendering.InstancedAnimation
 
                 // bake configuration
                 Input();
-
-                EditorGUILayout.Space(Contents.spacing);
-
                 AnimationConfig();
-
-                EditorGUILayout.Space(Contents.spacing);
-
                 MaterialRemapping();
-
-                EditorGUILayout.Space(Contents.spacing);
-
+                MeshConfig();
                 Output();
-
-                EditorGUILayout.Space(Contents.spacing);
 
                 // bake button
                 using (new EditorGUILayout.HorizontalScope())
@@ -128,19 +122,20 @@ namespace Framework.Rendering.InstancedAnimation
                     EditorUtility.SetDirty(this);
                 }
             }
+
+            EditorGUILayout.Space(Contents.spacing);
         }
 
         void AnimationConfig()
         {
-            if (m_animator == null)
+            if (m_animator == null || !(m_animator.runtimeAnimatorController is AnimatorController controller))
             {
                 return;
             }
 
-            var controller = m_animator.runtimeAnimatorController as AnimatorController;
-            var animations = controller.animationClips;
-
             EditorGUILayout.LabelField("Animations", EditorStyles.boldLabel);
+
+            var animations = controller.animationClips;
 
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -178,6 +173,8 @@ namespace Framework.Rendering.InstancedAnimation
                     }
                 }
             }
+
+            EditorGUILayout.Space(Contents.spacing);
         }
 
         void MaterialRemapping()
@@ -221,6 +218,32 @@ namespace Framework.Rendering.InstancedAnimation
                     }
                 }
             }
+
+            EditorGUILayout.Space(Contents.spacing);
+        }
+
+        void MeshConfig()
+        {
+            if (m_animator == null)
+            {
+                return;
+            }
+
+            EditorGUILayout.LabelField("Meshes", EditorStyles.boldLabel);
+
+            using (var change = new EditorGUI.ChangeCheckScope())
+            {
+                var compression = (VertexCompression)EditorGUILayout.EnumPopup(Contents.vertexCompression, m_vertexCompression);
+
+                if (change.changed)
+                {
+                    Undo.RecordObject(this, "Set Vertex Compression");
+                    m_vertexCompression = compression;
+                    EditorUtility.SetDirty(this);
+                }
+            }
+
+            EditorGUILayout.Space(Contents.spacing);
         }
 
         void Output()
@@ -263,6 +286,8 @@ namespace Framework.Rendering.InstancedAnimation
                     EditorUtility.SetDirty(this);
                 }
             }
+
+            EditorGUILayout.Space(Contents.spacing);
         }
 
         void Bake()
@@ -272,6 +297,8 @@ namespace Framework.Rendering.InstancedAnimation
             var config = new BakeConfig
             {
                 animator = m_animator,
+                vertexMode = m_vertexCompression,
+                lod = m_animator.GetComponentInChildren<LODGroup>(true),
                 animations = controller.animationClips,
                 frameRates = m_frameRates,
                 renderers = m_animator.GetComponentsInChildren<SkinnedMeshRenderer>(true),
@@ -280,12 +307,7 @@ namespace Framework.Rendering.InstancedAnimation
 
             var baker = new Baker(config);
 
-            if (baker.Bake())
-            {
-                return;
-            }
-
-            baker.SaveBake(m_path);
+            baker.Bake(m_path);
         }
 
         bool CanBake(bool drawMessages)
@@ -324,6 +346,30 @@ namespace Framework.Rendering.InstancedAnimation
                 foreach (var renderer in renderers)
                 {
                     var mesh = renderer.sharedMesh;
+
+                    for (var i = 0; i < mesh.subMeshCount; i++)
+                    {
+                        var topology = mesh.GetTopology(i);
+                        var indexFormat = mesh.indexFormat;
+
+                        if (topology != MeshTopology.Triangles)
+                        {
+                            if (drawMessages)
+                            {
+                                EditorGUILayout.HelpBox($"Mesh \"{mesh.name}\" has a submesh with {topology} topology. Only triangle meshes are supported.", MessageType.Warning);
+                            }
+                            canBake = false;
+                        }
+                        if (indexFormat != IndexFormat.UInt16)
+                        {
+                            if (drawMessages)
+                            {
+                                EditorGUILayout.HelpBox($"Mesh \"{mesh.name}\" uses index format {indexFormat}. Only 16 bit indices supported.", MessageType.Warning);
+                            }
+                            canBake = false;
+                        }
+                    }
+
                     var matCount = renderer.sharedMaterials.Length;
                     var subCount = mesh.subMeshCount;
 

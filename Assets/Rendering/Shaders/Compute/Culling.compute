@@ -1,0 +1,117 @@
+﻿#pragma kernel CSMain
+
+#include "MatrixUtils.hlsl"
+#include "UnityCG.cginc"
+
+#define MAX_LOD_COUNT 5
+
+CBUFFER_START(CullingPropertyBuffer)
+float4x4 _ViewProj;
+float3 _CameraPosition;
+float _LodBias;
+CBUFFER_END
+
+struct MeshData
+{
+    uint argsIndex;
+    uint lodCount;
+    float lodDistances[MAX_LOD_COUNT];
+};
+
+struct AnimationData
+{
+    float3 boundsCenter;
+    float3 boundsExtents;
+};
+
+struct InstanceData
+{
+    float3 position;
+    float4 rotation;
+    float3 scale;
+    uint meshIndex;
+    uint animationIndex;
+};
+
+StructuredBuffer<MeshData> _MeshDataBuffer;
+StructuredBuffer<AnimationData> _AnimationDataBuffer;
+StructuredBuffer<InstanceData> _InstanceDataBuffer;
+
+RWStructuredBuffer<uint> _ArgsBuffer;
+RWStructuredBuffer<uint> _IsVisibleBuffer;
+
+uint FrustumCull(float4 clipPos)
+{
+    return (clipPos.z > clipPos.w
+        || clipPos.x < -clipPos.w
+        || clipPos.x > clipPos.w
+        || clipPos.y < -clipPos.w
+        || clipPos.y > clipPos.w)
+        ? 0 : 1;
+}
+
+uint IsOutsideBounds(float3 pos, float3 center, float3 extents)
+{
+    float3 disp = pos - center;
+    return dot(disp, disp) > dot(extents, extents);
+}
+
+[numthreads(64, 1, 1)]
+void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID)
+{
+    uint id = dispatchThreadID.x;
+
+    InstanceData instance = _InstanceDataBuffer[id];
+    MeshData mesh = _MeshDataBuffer[instance.meshIndex];
+    AnimationData animation = _AnimationDataBuffer[instance.animationIndex];
+
+    // calculate the local to world matrix and mvp for the instance
+    float4x4 modelMat = TRS(instance.position, instance.rotation, instance.scale);
+    float4x4 mvp = modelMat * _ViewProj;
+
+    // determine if the instance is visible in the frustum
+    float3 minPos = animation.boundsCenter - animation.boundsExtents;
+    float3 maxPos = animation.boundsCenter + animation.boundsExtents;
+
+    float4 boxCorners[8];
+    boxCorners[0] = float4(minPos.x, minPos.y, minPos.z, 1.0);
+    boxCorners[1] = float4(minPos.x, minPos.y, maxPos.z, 1.0);
+    boxCorners[2] = float4(minPos.x, maxPos.y, minPos.z, 1.0);
+    boxCorners[3] = float4(minPos.x, maxPos.y, maxPos.z, 1.0);
+    boxCorners[4] = float4(maxPos.x, minPos.y, minPos.z, 1.0);
+    boxCorners[5] = float4(maxPos.x, minPos.y, maxPos.z, 1.0);
+    boxCorners[6] = float4(maxPos.x, maxPos.y, minPos.z, 1.0);
+    boxCorners[7] = float4(maxPos.x, maxPos.y, maxPos.z, 1.0);
+
+    uint isInFrustum = FrustumCull(mul(mvp, boxCorners[0]));
+
+    UNITY_UNROLL
+    for (int i = 1; i < 8; i++)
+    {
+        isInFrustum = saturate(isInFrustum + FrustumCull(mul(mvp, boxCorners[i])));
+    }
+
+    // if the camera is in the instance bounds we cannot frustum cull
+    float3 worldCenter = mul(modelMat, float4(animation.boundsCenter, 1.0)).xyz;
+    float distanceToCamera = distance(worldCenter, _CameraPosition) / _LodBias;
+
+    uint isVisible = 1;
+    if (IsOutsideBounds(_CameraPosition, worldCenter, animation.boundsExtents * instance.scale))
+    {
+        isVisible *= isInFrustum;
+        isVisible *= distanceToCamera < mesh.lodDistances[mesh.lodCount - 1];
+    }
+
+    // mark the instance as visible
+    _IsVisibleBuffer[id] = isVisible;
+
+    uint argsIndex = mesh.argsIndex;
+
+    UNITY_UNROLL
+    for (uint lod = 0; lod < MAX_LOD_COUNT; lod++)
+    {
+        argsIndex += distanceToCamera > mesh.lodDistances[lod];
+    }
+
+    InterlockedAdd(_ArgsBuffer[argsIndex], isVisible);
+}
