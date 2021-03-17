@@ -1,33 +1,21 @@
 ﻿#ifndef ANIMATION_INSTANCING_INPUT_INCLUDED
 #define ANIMATION_INSTANCING_INPUT_INCLUDED
 
+#include "InstancingTypes.hlsl"
+
 // Interpolated quaternions should be renormalized for correctness,
 // but with a high enough frame rate the effect might not be noticable.
 #define ANIMATION_INSTANCING_HIGH_QUALITY_INTERPOLATION
 
 #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
 
-struct InstanceProperties
-{
-    float4x4 model;
-    float4x4 modelInv;
-    uint animation;
-    float time;
-};
-
-struct AnimationRegion
-{
-    float2 min;
-    float2 max;
-};
-
 TEXTURE2D(_Animation);  SAMPLER(sampler_Animation);
 float4 _Animation_TexelSize;
 
-StructuredBuffer<AnimationRegion> _AnimationRegions;
+StructuredBuffer<AnimationData> _AnimationData;
 StructuredBuffer<InstanceProperties> _InstanceProperties;
 
-AnimationRegion _AnimationRegion;
+Rect _AnimationRegion;
 float _AnimationTime;
 
 void Setup()
@@ -42,7 +30,7 @@ void Setup()
     _AnimationTime = props.time;
 
     // get the region of the animation texture atlas the required texture is in
-    _AnimationRegion = _AnimationRegions[props.animation];
+    _AnimationRegion = _AnimationData[props.animation].textureRegion;
 }
 
 float3 RotatePoint(float3 p, float4 q)
