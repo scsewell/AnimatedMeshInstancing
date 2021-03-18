@@ -1,9 +1,0 @@
-﻿#ifndef ANIMATION_INSTANCING_CORE_INCLUDED
-#define ANIMATION_INSTANCING_CORE_INCLUDED
-
-#define ANIMATION_INSTANCING_MAX_LOD_COUNT 5
-
-#include "MatrixUtils.hlsl"
-#include "InstancingTypes.hlsl"
-
-#endif // ANIMATION_INSTANCING_CORE_INCLUDED

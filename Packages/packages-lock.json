@@ -1,5 +1,13 @@
 {
   "dependencies": {
+    "com.ssewell.animation-instancing": {
+      "version": "file:../../AnimatedInstancing",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.unity.burst": "1.4.6"
+      }
+    },
     "com.unity.burst": {
       "version": "1.4.6",
       "depth": 0,
