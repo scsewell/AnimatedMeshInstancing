@@ -1,7 +1,7 @@
 ﻿#ifndef ANIMATION_INSTANCING_INPUT_INCLUDED
 #define ANIMATION_INSTANCING_INPUT_INCLUDED
 
-#include "InstancingTypes.hlsl"
+#include "InstancingCore.hlsl"
 
 // Interpolated quaternions should be renormalized for correctness,
 // but with a high enough frame rate the effect might not be noticable.
@@ -15,7 +15,7 @@ float4 _Animation_TexelSize;
 StructuredBuffer<AnimationData> _AnimationData;
 StructuredBuffer<InstanceProperties> _InstanceProperties;
 
-Rect _AnimationRegion;
+AnimationData _AnimationInfo;
 float _AnimationTime;
 
 void Setup()
@@ -26,11 +26,11 @@ void Setup()
     UNITY_MATRIX_M = props.model;
     UNITY_MATRIX_I_M = props.modelInv;
 
-    // get the animation time of this intance
-    _AnimationTime = props.time;
+    // get the properties of the animation used by this instance
+    _AnimationInfo = _AnimationData[props.animation];
 
-    // get the region of the animation texture atlas the required texture is in
-    _AnimationRegion = _AnimationData[props.animation].textureRegion;
+    // get the animation time of this instance
+    _AnimationTime = props.time;
 }
 
 float3 RotatePoint(float3 p, float4 q)
@@ -50,7 +50,7 @@ Pose SampleAnimation(half time, half boneCoord)
     // We interpolate between them based on the time value subframe component.
 
     // OPTMINIZE THIS----------------------
-    half length = _AnimationRegion.max.x - _AnimationRegion.min.x;
+    half length = _AnimationInfo.textureRegionMax.x - _AnimationInfo.textureRegionMin.x;
 
     half currFrameTime = time * length;
     half nextFrameTime = fmod(currFrameTime + 1.0, length);
@@ -59,8 +59,8 @@ Pose SampleAnimation(half time, half boneCoord)
     currFrameTime /= length;
     nextFrameTime /= length;
 
-    half4 min = _AnimationRegion.min.xxyy;
-    half4 max = _AnimationRegion.max.xxyy;
+    half4 min = _AnimationInfo.textureRegionMin.xxyy;
+    half4 max = _AnimationInfo.textureRegionMax.xxyy;
     half4 fac = half4(currFrameTime, nextFrameTime, boneCoord, boneCoord + 0.5);
 
     half4 uv = lerp(min, max, fac) / _Animation_TexelSize.zzww;

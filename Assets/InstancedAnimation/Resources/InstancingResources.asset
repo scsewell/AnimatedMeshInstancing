@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 99574a744105b6146957bb79ff8d0080, type: 3}
-  m_Name: InstancedAnimationResources
+  m_Name: InstancingResources
   m_EditorClassIdentifier: 
   m_culling: {fileID: 7200000, guid: f754a051aeebaec4594532523897dd0c, type: 3}
   m_scan: {fileID: 7200000, guid: 53baec539bf38a643a67da87d289045e, type: 3}

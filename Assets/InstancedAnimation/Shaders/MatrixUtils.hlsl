@@ -1,7 +1,7 @@
 ﻿#ifndef ANIMATION_INSTANCING_MATRIX_UTILS
 #define ANIMATION_INSTANCING_MATRIX_UTILS
 
-float4x4 Inverse(float4x4 m)
+float4x4 InvertMatrix(float4x4 m)
 {
 #define minor(a,b,c) determinant(float3x3(m.a, m.b, m.c))
 

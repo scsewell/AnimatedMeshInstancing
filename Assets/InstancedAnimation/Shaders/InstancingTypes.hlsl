@@ -1,20 +1,6 @@
 ﻿#ifndef ANIMATION_INSTANCING_TYPES_INCLUDED
 #define ANIMATION_INSTANCING_TYPES_INCLUDED
 
-#define ANIMATION_INSTANCING_MAX_LOD_COUNT 5
-
-struct Bounds
-{
-    float3 center;
-    float3 extents;
-};
-
-struct Rect
-{
-    float2 min;
-    float2 max;
-};
-
 struct MeshData
 {
     uint argsIndex;
@@ -22,10 +8,17 @@ struct MeshData
     float lodDistances[ANIMATION_INSTANCING_MAX_LOD_COUNT];
 };
 
+struct Bounds
+{
+    float3 center;
+    float3 extents;
+};
+
 struct AnimationData
 {
     Bounds bounds;
-    Rect textureRegion;
+    float2 textureRegionMin;
+    float2 textureRegionMax;
 };
 
 struct InstanceData
@@ -48,4 +41,3 @@ struct InstanceProperties
 };
 
 #endif // ANIMATION_INSTANCING_TYPES_INCLUDED
-

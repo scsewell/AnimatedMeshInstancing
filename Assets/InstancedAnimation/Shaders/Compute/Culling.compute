@@ -1,8 +1,7 @@
 ﻿#pragma kernel CSMain
 
 #include "UnityCG.cginc"
-#include "MatrixUtils.hlsl"
-#include "../InstancingTypes.hlsl"
+#include "../InstancingCore.hlsl"
 
 CBUFFER_START(CullingPropertyBuffer)
 float4x4 _ViewProj;
@@ -28,6 +27,8 @@ uint FrustumCull(float4 clipPos)
     ) ? 0 : 1;
 }
 
+// This is a fast approximation suitable for bounds that are 
+// of similar size in each dimention.
 uint IsOutsideBounds(float3 pos, float3 center, float3 extents)
 {
     float3 disp = pos - center;
@@ -46,8 +47,9 @@ void CSMain(uint tID : SV_DispatchThreadID)
     float4x4 mvp = modelMat * _ViewProj;
 
     // determine if the instance is visible in the frustum
-    float3 min = animation.bounds.center - animation.bounds.extents;
-    float3 max = animation.bounds.center + animation.bounds.extents;
+    float3 scaledExtents = animation.bounds.extents * instance.scale;
+    float3 min = animation.bounds.center - scaledExtents;
+    float3 max = animation.bounds.center + scaledExtents;
 
     float4 corners[8];
     corners[0] = float4(min.x, min.y, min.z, 1.0);
@@ -72,7 +74,7 @@ void CSMain(uint tID : SV_DispatchThreadID)
     float distanceToCamera = distance(worldCenter, _CameraPosition) / _LodBias;
 
     uint isVisible = 1;
-    if (IsOutsideBounds(_CameraPosition, worldCenter, animation.bounds.extents * instance.scale))
+    if (IsOutsideBounds(_CameraPosition, worldCenter, scaledExtents))
     {
         isVisible *= isInFrustum;
         isVisible *= distanceToCamera < mesh.lodDistances[mesh.lodCount - 1];

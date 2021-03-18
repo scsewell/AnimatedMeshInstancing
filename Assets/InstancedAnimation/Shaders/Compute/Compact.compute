@@ -1,7 +1,6 @@
 ﻿#pragma kernel CSMain
 
-#include "MatrixUtils.hlsl"
-#include "../InstancingTypes.hlsl"
+#include "../InstancingCore.hlsl"
 
 StructuredBuffer<InstanceData> _InstanceData;
 StructuredBuffer<uint> _IsVisible;

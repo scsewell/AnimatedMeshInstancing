@@ -5,8 +5,8 @@ namespace InstancedAnimation
     /// <summary>
     /// An asset that contains referenced to required resources.
     /// </summary>
-    [CreateAssetMenu(fileName = "New Resources", menuName = "Framework/Animation/Resources")]
-    public class Resources : ScriptableObject
+    [CreateAssetMenu(fileName = "New InstancingResources", menuName = "Framework/Animation/Resources")]
+    class InstancingResources : ScriptableObject
     {
         [SerializeField]
         ComputeShader m_culling;
