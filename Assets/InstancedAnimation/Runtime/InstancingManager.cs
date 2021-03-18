@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
 using UnityEngine.Profiling;
+using System.Collections.Generic;
 
 namespace InstancedAnimation
 {
@@ -52,9 +53,8 @@ namespace InstancedAnimation
         static ComputeBuffer s_instanceDataBuffer;
         static ComputeBuffer s_drawArgsBuffer;
         static ComputeBuffer s_isVisibleBuffer;
-        static ComputeBuffer s_scanInBuffer;
-        static ComputeBuffer s_scanOutBuffer;
-        static ComputeBuffer s_scanIntermediateBuffer;
+        static ComputeBuffer s_isVisibleScanInBucketBuffer;
+        static ComputeBuffer s_isVisibleScanAcrossBucketsBuffer;
         static ComputeBuffer s_instancePropertiesBuffer;
 
         static bool s_enabled;
@@ -131,6 +131,117 @@ namespace InstancedAnimation
             }
         }
 
+        //static int s_instanceProviderCounter;
+        static readonly List<IInstanceProvider> s_instanceProviders = new List<IInstanceProvider>();
+        static NativeArray<MeshData> s_meshData;
+        static NativeArray<DrawArgs> s_drawArgs;
+        static NativeArray<AnimationData> s_animationData;
+        static NativeArray<InstanceData> s_instanceData;
+
+        public void RegisterInstanceProvider(IInstanceProvider provider)
+        {
+            if (s_instanceProviders.Contains(provider))
+            {
+                s_instanceProviders.Add(provider);
+            }
+        }
+
+        public void DeregisterInstanceProvider(IInstanceProvider provider)
+        {
+            s_instanceProviders.Remove(provider);
+        }
+
+        static void Update()
+        {
+            if (!s_enabled)
+            {
+                return;
+            }
+
+            // count the total number of instances to render this frame
+            var instanceCount = 0;
+
+            for (var i = 0; i < s_instanceProviders.Count; i++)
+            {
+                var provider = s_instanceProviders[i];
+                instanceCount += provider.InstanceCount;
+            }
+
+            if (instanceCount == 0)
+            {
+                return;
+            }
+
+            // update the instance data if it has changed
+
+
+
+            for (var i = 0; i < s_instanceProviders.Count; i++)
+            {
+                var provider = s_instanceProviders[i];
+                instanceCount += provider.InstanceCount;
+            }
+
+            // render the instances for each camera
+            Cull(Camera.main);
+            Draw(Camera.main);
+        }
+
+        static void Cull(Camera cam)
+        {
+            Profiler.BeginSample($"{nameof(InstancingManager)}.{nameof(Cull)}");
+
+            s_cullingCmdBuffer.Clear();
+            
+            Profiler.EndSample();
+        }
+
+        static void CreateBuffers()
+        {
+            s_meshDataBuffer = new ComputeBuffer(, MeshData.k_size)
+            {
+                name = $"{nameof(InstancingManager)}MeshData",
+            };
+            s_drawArgsBuffer = new ComputeBuffer(, DrawArgs.k_size, ComputeBufferType.IndirectArguments)
+            {
+                name = $"{nameof(InstancingManager)}DrawArgs",
+            };
+
+            s_animationDataBuffer = new ComputeBuffer(, AnimationData.k_size)
+            {
+                name = $"{nameof(InstancingManager)}AnimationData",
+            };
+
+            s_instanceDataBuffer = new ComputeBuffer(count, InstanceData.k_size)
+            {
+                name = $"{nameof(InstancingManager)}InstanceData",
+            };
+            s_isVisibleBuffer = new ComputeBuffer(count, sizeof(uint))
+            {
+                name = $"{nameof(InstancingManager)}IsVisible",
+            };
+            s_isVisibleScanInBucketBuffer = new ComputeBuffer(count, sizeof(uint))
+            {
+                name = $"{nameof(InstancingManager)}isVisibleScanInBucket",
+            };
+            s_instanceDataBuffer = new ComputeBuffer(count, InstanceProperties.k_size)
+            {
+                name = $"{nameof(InstancingManager)}InstanceData",
+            };
+
+            s_isVisibleScanAcrossBucketsBuffer = new ComputeBuffer(, sizeof(uint))
+            {
+                name = $"{nameof(InstancingManager)}isVisibleScanAcrossBuckets",
+            };
+        }
+
+        static void Draw(Camera cam)
+        {
+            Profiler.BeginSample($"{nameof(InstancingManager)}.{nameof(Draw)}");
+
+            Profiler.EndSample();
+        }
+
         static bool CreateResources()
         {
             if (s_resourcesInitialized)
@@ -159,10 +270,10 @@ namespace InstancedAnimation
                 return false;
             }
 
-            if (!TryGetKernel(s_cullingShader,  Kernels.k_CullingKernel,            ref s_cullingKernel) || 
-                !TryGetKernel(s_scanShader,     Kernels.k_ScanInBucketKernel,       ref s_scanInBucketKernel) ||
-                !TryGetKernel(s_scanShader,     Kernels.k_ScanAcrossBucketsKernel,  ref s_scanAcrossBucketsKernel) ||
-                !TryGetKernel(s_compactShader,  Kernels.k_CullingKernel,            ref s_compactKernel))
+            if (!TryGetKernel(s_cullingShader, Kernels.k_CullingKernel, ref s_cullingKernel) ||
+                !TryGetKernel(s_scanShader, Kernels.k_ScanInBucketKernel, ref s_scanInBucketKernel) ||
+                !TryGetKernel(s_scanShader, Kernels.k_ScanAcrossBucketsKernel, ref s_scanAcrossBucketsKernel) ||
+                !TryGetKernel(s_compactShader, Kernels.k_CullingKernel, ref s_compactKernel))
             {
                 DisposeResources();
                 return false;
@@ -208,44 +319,9 @@ namespace InstancedAnimation
             Dispose(ref s_instanceDataBuffer);
             Dispose(ref s_drawArgsBuffer);
             Dispose(ref s_isVisibleBuffer);
-            Dispose(ref s_scanInBuffer);
-            Dispose(ref s_scanOutBuffer);
-            Dispose(ref s_scanIntermediateBuffer);
+            Dispose(ref s_isVisibleScanInBucketBuffer);
+            Dispose(ref s_isVisibleScanAcrossBucketsBuffer);
             Dispose(ref s_instancePropertiesBuffer);
-        }
-
-        static void Update()
-        {
-            // skip if 0 instances
-            if (!s_enabled)
-            {
-                return;
-            }
-
-            Cull(Camera.main);
-            Draw(Camera.main);
-        }
-
-        static void Cull(Camera cam)
-        {
-            Profiler.BeginSample($"{nameof(InstancingManager)}.{nameof(Cull)}");
-
-            s_cullingCmdBuffer.Clear();
-
-            // create the compute buffers
-            //s_drawArgsBuffer = new ComputeBuffer(m_subMeshes.Length, SubMeshArgs.k_size, ComputeBufferType.IndirectArguments)
-            //{
-            //    name = $"{nameof(InstancingManager)}DrawArgs",
-            //};
-
-            Profiler.EndSample();
-        }
-
-        static void Draw(Camera cam)
-        {
-            Profiler.BeginSample($"{nameof(InstancingManager)}.{nameof(Draw)}");
-
-            Profiler.EndSample();
         }
 
         static bool IsSupported(out string reasons)
@@ -254,15 +330,15 @@ namespace InstancedAnimation
 
             if (!SystemInfo.supportsComputeShaders)
             {
-                reasons = (reasons == null ? string.Empty : reasons) + "Compute shaders are not supported!\n";
+                reasons = (reasons ?? string.Empty) + "Compute shaders are not supported!\n";
             }
             if (!SystemInfo.supportsSetConstantBuffer)
             {
-                reasons = (reasons == null ? string.Empty : reasons) + "Set constant buffer is not supported!\n";
+                reasons = (reasons ?? string.Empty) + "Set constant buffer is not supported!\n";
             }
             if (!SystemInfo.supportsInstancing)
             {
-                reasons = (reasons == null ? string.Empty : reasons) + "Instancing is not supported!\n";
+                reasons = (reasons ?? string.Empty) + "Instancing is not supported!\n";
             }
 
             return reasons == null;

@@ -23,9 +23,9 @@ namespace InstancedAnimation
     {
         public static readonly int k_size = Marshal.SizeOf<AnimationData>();
 
-        Bounds bounds;
-        float2 textureRegionMin;
-        float2 textureRegionMax;
+        public Bounds bounds;
+        public float2 textureRegionMin;
+        public float2 textureRegionMax;
     };
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -33,13 +33,13 @@ namespace InstancedAnimation
     {
         public static readonly int k_size = Marshal.SizeOf<InstanceData>();
 
-        float3 position;
-        float4 rotation;
-        float3 scale;
-        uint meshIndex;
-        uint animationStartIndex;
-        uint animationIndex;
-        float animationTime;
+        public float3 position;
+        public quaternion rotation;
+        public float3 scale;
+        public uint meshIndex;
+        public uint animationStartIndex;
+        public uint animationIndex;
+        public float animationTime;
     };
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -47,9 +47,9 @@ namespace InstancedAnimation
     {
         public static readonly int k_size = Marshal.SizeOf<InstanceProperties>();
 
-        float4x4 model;
-        float4x4 modelInv;
-        uint animationIndex;
-        float animationTime;
+        public float4x4 model;
+        public float4x4 modelInv;
+        public uint animationIndex;
+        public float animationTime;
     };
 }
